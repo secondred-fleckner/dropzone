@@ -470,6 +470,12 @@ var Dropzone = /*#__PURE__*/function (_Emitter) {
         dictResponseError: "Server responded with {{statusCode}} code.",
 
         /**
+         * If the xhr timeout was reached.
+         * `{{optionsTimeout}}` will be replaced with the defined timeout in seconds.
+         */
+        dictTimeoutError: "Upload timed out after {{optionsTimeout}} seconds.",
+
+        /**
          * If `addRemoveLinks` is true, the text to be used for the cancel upload link.
          */
         dictCancelUpload: "Cancel upload",
@@ -2409,6 +2415,10 @@ var Dropzone = /*#__PURE__*/function (_Emitter) {
         _this16._handleUploadError(files, xhr);
       }; // Some browsers do not have the .upload property
 
+      // timeout handling
+      xhr.ontimeout = function () {
+        _this15._handleUploadTimeout(files, xhr);
+      };
 
       var progressObj = xhr.upload != null ? xhr.upload : xhr;
 
@@ -2728,6 +2738,40 @@ var Dropzone = /*#__PURE__*/function (_Emitter) {
       }
 
       this._errorProcessing(files, response || this.options.dictResponseError.replace("{{statusCode}}", xhr.status), xhr);
+    }
+  }, {
+    key: "_handleUploadTimeout",
+    value: function _handleUploadTimeout(files, xhr, response) {
+      if (files[0].status === Dropzone.CANCELED) {
+        return;
+      }
+
+      if (files[0].upload.chunked && this.options.retryChunks) {
+        let chunk = this._getChunk(files[0], xhr);
+        if (chunk.retries++ < this.options.retryChunksLimit) {
+          this._uploadData(files, [chunk.dataBlock]);
+          return;
+        } else {
+          console.warn('Retried this chunk too often. Giving up due to repeated timeouts.');
+        }
+      }
+
+      for (var _iterator31_ = files, _isArray31 = true, _i33 = 0, _iterator31_ = _isArray31 ? _iterator31 : _iterator31[Symbol.iterator]();;) {
+        let _ref30;
+
+        if (_isArray31) {
+          if (_i33 >= _iterator31_.length) break;
+          _ref30 = _iterator31_[_i33++];
+        } else {
+          _i33 = _iterator31_.next();
+          if (_i33.done) break;
+          _ref30 = _i33.value;
+        }
+
+        let file = _ref30;
+
+        this._errorProcessing(files, response || this.options.dictTimeoutError.replace("{{optionsTimeout}}", Math.ceil(this.options.timeout / 1000)), xhr);
+      }
     }
   }, {
     key: "submitRequest",
